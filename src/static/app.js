@@ -24,6 +24,29 @@ document.addEventListener("DOMContentLoaded", () => {
   const loginForm = document.getElementById("login-form");
   const closeLoginModal = document.querySelector(".close-login-modal");
   const loginMessage = document.getElementById("login-message");
+  const themeToggles = document.querySelectorAll(".theme-toggle");
+
+  // Restore the selected color theme and let users switch between themes
+  function setTheme(theme) {
+    const isDark = theme === "dark";
+    document.documentElement.dataset.theme = isDark ? "dark" : "light";
+    themeToggles.forEach((themeToggle) => {
+      themeToggle.textContent = isDark ? "☀️ Light mode" : "🌙 Dark mode";
+      themeToggle.setAttribute(
+        "aria-label",
+        `Switch to ${isDark ? "light" : "dark"} mode`
+      );
+      themeToggle.setAttribute("aria-pressed", String(isDark));
+    });
+    localStorage.setItem("theme", isDark ? "dark" : "light");
+  }
+
+  setTheme(localStorage.getItem("theme") === "dark" ? "dark" : "light");
+  themeToggles.forEach((themeToggle) => {
+    themeToggle.addEventListener("click", () => {
+      setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
+    });
+  });
 
   // Activity categories with corresponding colors
   const activityTypes = {
