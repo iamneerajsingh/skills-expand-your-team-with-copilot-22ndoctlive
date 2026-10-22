@@ -14,6 +14,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const categoryFilters = document.querySelectorAll(".category-filter");
   const dayFilters = document.querySelectorAll(".day-filter");
   const timeFilters = document.querySelectorAll(".time-filter");
+  const viewToggles = document.querySelectorAll(".view-toggle");
 
   // Authentication elements
   const loginButton = document.getElementById("login-button");
@@ -63,6 +64,17 @@ document.addEventListener("DOMContentLoaded", () => {
   let searchQuery = "";
   let currentDay = "";
   let currentTimeRange = "";
+  let currentView = "cards";
+
+  viewToggles.forEach((button) => {
+    button.addEventListener("click", () => {
+      currentView = button.dataset.view;
+      viewToggles.forEach((toggle) => {
+        toggle.setAttribute("aria-pressed", String(toggle === button));
+      });
+      displayFilteredActivities();
+    });
+  });
 
   // Authentication state
   let currentUser = null;
@@ -280,6 +292,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Show loading skeletons
   function showLoadingSkeletons() {
     activitiesList.innerHTML = "";
+    activitiesList.classList.remove("calendar-view");
 
     // Create more skeleton cards to fill the screen since they're smaller now
     for (let i = 0; i < 9; i++) {
@@ -436,6 +449,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function displayFilteredActivities() {
     // Clear the activities list
     activitiesList.innerHTML = "";
+    activitiesList.classList.toggle("calendar-view", currentView === "calendar");
 
     // Apply client-side filtering - this handles category filter and search, plus weekend filter
     let filteredActivities = {};
@@ -489,10 +503,138 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    if (currentView === "calendar") {
+      renderCalendar(filteredActivities);
+      return;
+    }
+
     // Display filtered activities
     Object.entries(filteredActivities).forEach(([name, details]) => {
       renderActivityCard(name, details);
     });
+  }
+
+  function renderCalendar(activities) {
+    const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const events = days.map(() => []);
+    const unscheduled = [];
+    const toMinutes = (time) => {
+      if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time)) return NaN;
+      const [hours, minutes] = time.split(":").map(Number);
+      return hours * 60 + minutes;
+    };
+
+    Object.entries(activities).forEach(([name, details]) => {
+      const schedule = details.schedule_details;
+      const start = toMinutes(schedule?.start_time);
+      const end = toMinutes(schedule?.end_time);
+      const activityDays = days.filter((day) => schedule?.days?.includes(day));
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start || !activityDays.length) {
+        unscheduled.push([name, details]);
+        return;
+      }
+      activityDays.forEach((day) => {
+        if (currentDay && currentDay !== day) return;
+        if (currentTimeRange === "weekend" && !timeRanges.weekend.days.includes(day)) return;
+        events[days.indexOf(day)].push({ name, details, start, end });
+      });
+    });
+
+    const scheduled = events.flat();
+    if (scheduled.length) {
+      const startHour = Math.floor(Math.min(...scheduled.map((event) => event.start)) / 60);
+      const endHour = Math.ceil(Math.max(...scheduled.map((event) => event.end)) / 60);
+      const pixelsPerHour = 72;
+      const calendar = document.createElement("div");
+      calendar.className = "weekly-calendar";
+      calendar.setAttribute("aria-label", "Weekly activity schedule, Sunday through Saturday");
+      const timeHeading = document.createElement("div");
+      timeHeading.className = "calendar-heading";
+      timeHeading.textContent = "Time";
+      calendar.appendChild(timeHeading);
+      days.forEach((day) => {
+        const heading = document.createElement("div");
+        heading.className = "calendar-heading";
+        heading.textContent = day;
+        calendar.appendChild(heading);
+      });
+
+      const times = document.createElement("div");
+      times.className = "calendar-times";
+      times.style.height = `${(endHour - startHour) * pixelsPerHour}px`;
+      for (let hour = startHour; hour <= endHour; hour++) {
+        const label = document.createElement("span");
+        label.className = "calendar-time";
+        label.style.top = `${(hour - startHour) * pixelsPerHour}px`;
+        label.textContent = `${hour % 12 || 12} ${hour % 24 >= 12 ? "PM" : "AM"}`;
+        times.appendChild(label);
+      }
+      calendar.appendChild(times);
+
+      events.forEach((dayEvents, dayIndex) => {
+        const lane = document.createElement("div");
+        lane.className = "calendar-day";
+        lane.setAttribute("aria-label", days[dayIndex]);
+        lane.style.height = times.style.height;
+        dayEvents.sort((a, b) => a.start - b.start || a.end - b.end);
+
+        // Connected overlap groups share a width; touching events can reuse a column.
+        let group = [];
+        let columnEnds = [];
+        let groupEnd = -1;
+        const drawGroup = () => {
+          group.forEach((event) => {
+            const entry = document.createElement("div");
+            entry.className = "calendar-event";
+            entry.tabIndex = 0;
+            entry.style.top = `${(event.start - startHour * 60) * pixelsPerHour / 60}px`;
+            entry.style.height = `${(event.end - event.start) * pixelsPerHour / 60}px`;
+            entry.style.left = `${event.column * 100 / columnEnds.length}%`;
+            entry.style.width = `${100 / columnEnds.length}%`;
+            const name = document.createElement("strong");
+            name.textContent = event.name;
+            const enrollment = document.createElement("span");
+            enrollment.textContent = `${event.details.participants.length}/${event.details.max_participants} enrolled`;
+            const details = [
+              event.name,
+              event.details.description,
+              formatSchedule(event.details),
+              enrollment.textContent,
+              `Participants: ${event.details.participants.join(", ") || "None"}`,
+            ].join("\n");
+            entry.title = details;
+            entry.setAttribute("aria-label", details);
+            entry.append(name, enrollment);
+            lane.appendChild(entry);
+          });
+        };
+        dayEvents.forEach((event) => {
+          if (event.start >= groupEnd) {
+            drawGroup();
+            group = [];
+            columnEnds = [];
+          }
+          let column = columnEnds.findIndex((end) => end <= event.start);
+          if (column === -1) column = columnEnds.length;
+          columnEnds[column] = event.end;
+          group.push({ ...event, column });
+          groupEnd = Math.max(groupEnd, event.end);
+        });
+        drawGroup();
+        calendar.appendChild(lane);
+      });
+      const scroll = document.createElement("div");
+      scroll.className = "calendar-scroll";
+      scroll.appendChild(calendar);
+      activitiesList.appendChild(scroll);
+    }
+
+    if (unscheduled.length) {
+      const notice = document.createElement("p");
+      notice.textContent = "These activities have no plottable weekly schedule:";
+      activitiesList.appendChild(notice);
+      unscheduled.forEach(([name, details]) => renderActivityCard(name, details));
+    }
   }
 
   // Function to render a single activity card
