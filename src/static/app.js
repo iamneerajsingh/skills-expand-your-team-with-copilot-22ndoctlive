@@ -12,6 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const searchInput = document.getElementById("activity-search");
   const searchButton = document.getElementById("search-button");
   const categoryFilters = document.querySelectorAll(".category-filter");
+  const groupBy = document.getElementById("group-by");
   const dayFilters = document.querySelectorAll(".day-filter");
   const timeFilters = document.querySelectorAll(".time-filter");
 
@@ -489,14 +490,47 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    // Display filtered activities
-    Object.entries(filteredActivities).forEach(([name, details]) => {
-      renderActivityCard(name, details);
-    });
+    if (groupBy.value === "category") {
+      const groupedActivities = {};
+      Object.entries(filteredActivities).forEach(([name, details]) => {
+        const activityType = getActivityType(name, details.description);
+        if (!groupedActivities[activityType]) {
+          groupedActivities[activityType] = [];
+        }
+        groupedActivities[activityType].push([name, details]);
+      });
+
+      Object.entries(activityTypes).forEach(([activityType, typeInfo]) => {
+        const activities = groupedActivities[activityType];
+        if (!activities) {
+          return;
+        }
+
+        const group = document.createElement("div");
+        group.className = "activity-group";
+
+        const heading = document.createElement("h3");
+        heading.textContent = typeInfo.label;
+        group.appendChild(heading);
+
+        const groupActivities = document.createElement("div");
+        groupActivities.className = "activity-group-activities";
+        activities.forEach(([name, details]) => {
+          renderActivityCard(name, details, groupActivities);
+        });
+        group.appendChild(groupActivities);
+        activitiesList.appendChild(group);
+      });
+    } else {
+      // Display filtered activities
+      Object.entries(filteredActivities).forEach(([name, details]) => {
+        renderActivityCard(name, details);
+      });
+    }
   }
 
   // Function to render a single activity card
-  function renderActivityCard(name, details) {
+  function renderActivityCard(name, details, container = activitiesList) {
     const activityCard = document.createElement("div");
     activityCard.className = "activity-card";
 
@@ -610,7 +644,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
-    activitiesList.appendChild(activityCard);
+    container.appendChild(activityCard);
   }
 
   // Event listeners for search and filter
@@ -624,6 +658,8 @@ document.addEventListener("DOMContentLoaded", () => {
     searchQuery = searchInput.value;
     displayFilteredActivities();
   });
+
+  groupBy.addEventListener("change", displayFilteredActivities);
 
   // Add event listeners to category filter buttons
   categoryFilters.forEach((button) => {
