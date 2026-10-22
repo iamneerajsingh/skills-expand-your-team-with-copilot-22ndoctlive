@@ -60,7 +60,8 @@ document.addEventListener("DOMContentLoaded", () => {
   // State for activities and filters
   let allActivities = {};
   let currentFilter = "all";
-  let searchQuery = "";
+  let searchQuery = new URLSearchParams(window.location.search).get("activity") || "";
+  searchInput.value = searchQuery;
   let currentDay = "";
   let currentTimeRange = "";
 
@@ -495,6 +496,60 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  function createSharingControls(name, details) {
+    const activityUrl = new URL(window.location.pathname, window.location.origin);
+    activityUrl.searchParams.set("activity", name);
+    const url = activityUrl.href;
+    const text = `Check out ${name} at Mergington High School! ${details.description} Schedule: ${formatSchedule(details)}`;
+    const encodedUrl = encodeURIComponent(url);
+    const encodedText = encodeURIComponent(text);
+    const controls = document.createElement("div");
+    controls.className = "activity-sharing";
+    controls.setAttribute("role", "group");
+    controls.setAttribute("aria-label", `Share ${name}`);
+
+    const label = document.createElement("span");
+    label.textContent = "Share:";
+    controls.appendChild(label);
+
+    const platforms = [
+      ["WhatsApp", `https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`],
+      ["Facebook", `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`],
+      ["X", `https://twitter.com/intent/tweet?text=${encodedText}&url=${encodedUrl}`],
+    ];
+    platforms.forEach(([platform, href]) => {
+      const link = document.createElement("a");
+      link.className = "share-button";
+      link.textContent = platform;
+      link.href = href;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.setAttribute("aria-label", `Share ${name} on ${platform} (opens in a new tab)`);
+      controls.appendChild(link);
+    });
+
+    const copyButton = document.createElement("button");
+    copyButton.type = "button";
+    copyButton.className = "share-button";
+    copyButton.textContent = "Copy link";
+    copyButton.setAttribute("aria-label", `Copy link to ${name}`);
+    const status = document.createElement("span");
+    status.className = "share-status";
+    status.setAttribute("role", "status");
+    copyButton.addEventListener("click", async () => {
+      status.textContent = "";
+      try {
+        await navigator.clipboard.writeText(url);
+        status.textContent = "Link copied!";
+      } catch {
+        window.prompt("Copy this activity link:", url);
+        status.textContent = "If the link was not copied, copy it from the dialog.";
+      }
+    });
+    controls.append(copyButton, status);
+    return controls;
+  }
+
   // Function to render a single activity card
   function renderActivityCard(name, details) {
     const activityCard = document.createElement("div");
@@ -610,6 +665,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
+    activityCard.appendChild(createSharingControls(name, details));
     activitiesList.appendChild(activityCard);
   }
 

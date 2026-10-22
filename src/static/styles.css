@@ -317,6 +317,44 @@ button {
   transition: background-color 0.2s;
 }
 
+.activity-sharing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.activity-sharing .share-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background-color: var(--surface);
+  color: var(--primary);
+  font-size: 0.85rem;
+  text-decoration: none;
+}
+
+.activity-sharing .share-button:hover {
+  background-color: var(--border-light);
+}
+
+.activity-sharing .share-button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.share-status {
+  width: 100%;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
 /* Tooltip styles */
 .tooltip {
   position: relative;
